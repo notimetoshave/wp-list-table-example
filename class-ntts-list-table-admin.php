@@ -46,8 +46,8 @@ class NTTS_List_Table_Admin {
 	 */
 	public function add_admin_menus() {
 		add_menu_page(
-			__( 'Event Logs', 'nttslt' ),
-			__( 'Event Logs', 'nttslt' ),
+			__( 'NTTS: Event Logs', 'nttslt' ),
+			__( 'NTTS: Event Logs', 'nttslt' ),
 			'list_users',
 			'ntts_event_log',
 			[ $this, 'admin_screen_display_table' ],
@@ -75,7 +75,7 @@ class NTTS_List_Table_Admin {
 			
 			/**
 			 * Nonce added by WP_List_Table->display_tablenav('top') using plural table value,
-			 * and also added by various wp_nonce_url() calls to add the nonce to URLs in action links.
+			 * and also added by various wp_nonce_url() calls for non-form action URLs.
 			 * I treat all actions on events as bulk events, even on single events, else I would
 			 * need a separate set of logic for non-bulk events such as "Undo" links and "Trash"
 			 * row links.

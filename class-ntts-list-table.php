@@ -145,10 +145,12 @@ class NTTS_List_Table extends WP_List_Table {
 
 		/**
 		 * Create base SQL query.
+		 * Including the "status" data (not as a column) so we can use it in
+		 * $this->handle_row_actions() to determine which action links to use.
 		 */
 		$sql = $wpdb->prepare(
 			'SELECT
-				%i.`ID`, `date`, `event`, `user_login` AS `wp_user`
+				%i.`ID`, `date`, `event`, `user_login` AS `wp_user`, `status`
 			FROM
 				%i
 			LEFT JOIN
@@ -655,13 +657,13 @@ class NTTS_List_Table extends WP_List_Table {
 	/**
 	 * Generates and displays row action links.
 	 * 
-	 * @param array $item         Post being acted upon.
+	 * @see WP_List_Table->handle_row_actions() 
+	 * 
+	 * @param array  $item        Item being acted upon.
 	 * @param string $column_name Current column name.
 	 * @param string $primary     Primary column name.
 	 * @return string Row actions output for posts, or an empty string
 	 *                if the current column is not the primary column.
-	 * 
-	 * @see WP_List_Table->handle_row_actions() 
 	 */
 	protected function handle_row_actions( $item, $column_name, $primary ) {
 		//var_dump($item);
@@ -671,13 +673,46 @@ class NTTS_List_Table extends WP_List_Table {
 
 		$actions = [];
 
-		$actions['trash'] = sprintf(
-			'<a href="%s" class="submitdelete" aria-label="%s">%s</a>',
-			esc_url( wp_nonce_url( "admin.php?page={$_REQUEST['page']}&action=trash&event_ids[]={$item['ID']}", 'bulk-events' ) ),
-			/* translators: %s: Post title. */
-			esc_attr( sprintf( __( 'Move &#8220;%s&#8221; to the Trash' ), '$title' ) ),
-			_x( 'Trash', 'verb' )
-		);
+		// Chose an appropriate permission for your model
+		$has_permission = current_user_can( 'edit_users' );
+
+		// edit (fake) but putting here as an example
+		if ( $has_permission && 'trash' !== $item['status'] ) {
+			$actions['edit'] = sprintf(
+				'<a href="%s" onclick="return false;">%s</a>', // disabling link with onclick since it's fake
+				'#',
+				__( 'Edit', 'nttslt' )
+			);
+		}
+		
+		// trash/untrash
+		if ( $has_permission && 'trash' !== $item['status'] ) {
+			$actions['trash'] = sprintf(
+				'<a href="%s" aria-label="%s">%s</a>',
+				esc_url( wp_nonce_url( "admin.php?page={$_REQUEST['page']}&action=trash&event_ids[]={$item['ID']}", 'bulk-events' ) ),
+				/* translators: 1: Event message 2: Date 3: Username */
+				esc_attr( sprintf( 
+					__( 'Move event &#8220;%1$s&#8221;, occurring %2$s by user %3$s to the Trash', 'nttslt' ),
+					$item['event'],
+					$item['date'],
+					$item['wp_user']
+				) ),
+				_x( 'Trash', 'verb', 'nttslt' )
+			);
+		} elseif ( $has_permission && 'trash' === $item['status'] ) {
+			$actions['untrash'] = sprintf(
+				'<a href="%s" aria-label="%s">%s</a>',
+				esc_url( wp_nonce_url( "admin.php?page={$_REQUEST['page']}&action=untrash&event_ids[]={$item['ID']}", 'bulk-events' ) ),
+				/* translators: 1: Event message 2: Date 3: Username */
+				esc_attr( sprintf( 
+					__( 'Restore event &#8220;%1$s&#8221;, occurring %2$s by user %3$s from the Trash', 'nttslt' ),
+					$item['event'],
+					$item['date'],
+					$item['wp_user']
+				) ),
+				__( 'Restore', 'nttslt' )
+			);
+		}
 
 		return $this->row_actions( $actions );
 	}
@@ -689,7 +724,7 @@ class NTTS_List_Table extends WP_List_Table {
 	 */
 	public function display() {
 		/**
-		 * Add additional values to the form, useful for pagination, AJAX, etc.
+		 * Add additional hidden data to the form, useful for pagination, AJAX, etc.
 		 * We're implementing Javascript AJAX features so we need a way to grab
 		 * values that wouldn't normally exist in the form. This allows us to use just
 		 * the form data to build the fetch() request and not have to pull some
