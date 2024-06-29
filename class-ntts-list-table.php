@@ -353,7 +353,6 @@ class NTTS_List_Table extends WP_List_Table {
 	 * @see WP_List_Table->single_row_columns() conditionals
 	 *
 	 * @param array $item Row of data. Contains the full row, not just this column.
-	 *
 	 * @return string
 	 */
 	protected function column_date( $item ) {
@@ -654,6 +653,36 @@ class NTTS_List_Table extends WP_List_Table {
 	}
 
 	/**
+	 * Generates and displays row action links.
+	 * 
+	 * @param array $item         Post being acted upon.
+	 * @param string $column_name Current column name.
+	 * @param string $primary     Primary column name.
+	 * @return string Row actions output for posts, or an empty string
+	 *                if the current column is not the primary column.
+	 * 
+	 * @see WP_List_Table->handle_row_actions() 
+	 */
+	protected function handle_row_actions( $item, $column_name, $primary ) {
+		//var_dump($item);
+		if ( $primary !== $column_name ) {
+			return '';
+		}
+
+		$actions = [];
+
+		$actions['trash'] = sprintf(
+			'<a href="%s" class="submitdelete" aria-label="%s">%s</a>',
+			esc_url( wp_nonce_url( "admin.php?page={$_REQUEST['page']}&action=trash&event_ids[]={$item['ID']}", 'bulk-events' ) ),
+			/* translators: %s: Post title. */
+			esc_attr( sprintf( __( 'Move &#8220;%s&#8221; to the Trash' ), '$title' ) ),
+			_x( 'Trash', 'verb' )
+		);
+
+		return $this->row_actions( $actions );
+	}
+
+	/**
 	 * Displays the table.
 	 * 
 	 * @see WP_List_Table->display()
@@ -681,8 +710,6 @@ class NTTS_List_Table extends WP_List_Table {
 		
 		parent::display();
 	}
-
-	
 
 	/**
 	 * @todo

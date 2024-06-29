@@ -73,8 +73,13 @@ class NTTS_List_Table_Admin {
 			 * Doing actions.
 			 */
 			
-			// Nonce added by WP_Posts_List_Table->display_tablenav('top') using plural table value,
-			// and also added by wp_nonce_url() in this file to populate the 'Undo' bulk link.
+			/**
+			 * Nonce added by WP_List_Table->display_tablenav('top') using plural table value,
+			 * and also added by various wp_nonce_url() calls to add the nonce to URLs in action links.
+			 * I treat all actions on events as bulk events, even on single events, else I would
+			 * need a separate set of logic for non-bulk events such as "Undo" links and "Trash"
+			 * row links.
+			 */
 			check_admin_referer( 'bulk-events' );
 
 			/**
