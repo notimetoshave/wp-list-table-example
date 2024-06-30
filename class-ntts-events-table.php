@@ -1,5 +1,6 @@
 <?php
 /**
+ * Main table class that extends WP_List_Table.
  * 
  * Some of these features are inspired by:
  * @link https://blog.caercam.org/2014/04/03/a-way-to-implement-ajax-in-wp_list_table/
@@ -9,14 +10,15 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 	require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
 }
 
-class NTTS_List_Table extends WP_List_Table {
+class NTTS_Events_Table extends WP_List_Table {
 	
 	/**
 	 * Table name that contains data.
 	 *
 	 * All core classes that extend WP_List_Table use core functions
 	 * (get_posts(), get_users() etc.) to query data, but we're
-	 * running queries inside of here, so store a reference to the table.
+	 * running queries directly inside of this table, so we'll store
+	 * a reference to the table.
 	 */
 	const DB_TABLE = NTTS_Plugin_List_Table_Bootstrap::DB_TABLE;
 
@@ -46,8 +48,8 @@ class NTTS_List_Table extends WP_List_Table {
 		parent::__construct( [
 			'plural' => 'events',
 			'singular' => 'event',
-			//'ajax' => true,
-			//'screen' => 'nttslt_screen_events',
+			'ajax' => true, // Disable AJAX by setting this to false.
+			// 'screen' => '', // Haven't found a practical use for this yet as we're using custom data.
 		] );
 	}
 
@@ -98,10 +100,11 @@ class NTTS_List_Table extends WP_List_Table {
 	/**
 	 * Columns to make sortable.
 	 * 
-	 * This is not the most intuitive function. This controls the UI of the sortable column headers.
+	 * This is not the most intuitive function. The values here control
+	 * the link query string and UI of each sortable column headers.
 	 * It does not, by itself, do anything with the table ordering until the headers
 	 * are clicked. To make the initial state of the UI reflect the default ordering
-	 * of the query in $this->get_entries(), supply proper values here to match the query.
+	 * of the query in $this->get_entries(), supply values here to match the query.
 	 * 
 	 * Here is how I believe that these values work:
 	 * 
@@ -197,13 +200,11 @@ class NTTS_List_Table extends WP_List_Table {
 		$sql .= " LIMIT {$per_page}";
 		$sql .= ' OFFSET ' . ( $this->get_pagenum() - 1 ) * $per_page;
 
-		//echo $sql;
-
 		return $wpdb->get_results( $sql, 'ARRAY_A' );
 	}
 
 	/**
-	 * Get the total record count.
+	 * Get the total record count from the query.
 	 * 
 	 * @global wpdb $wpdb WordPress database abstraction object.
 	 *
@@ -236,6 +237,8 @@ class NTTS_List_Table extends WP_List_Table {
 
 	/**
 	 * Get the record count per status, independent of any query vars.
+	 *
+	 * This is used to supply the counts in the status links.
 	 * 
 	 * @param null|string $status Which status to use. null is all, 'publish' | 'trash'
 	 * @return string|null
@@ -277,6 +280,7 @@ class NTTS_List_Table extends WP_List_Table {
 	private function sql_where() {
 		global $wpdb;
 
+		// Start string with a true to make concatenating values easier.
 		$where = ' WHERE 1=1';
 
 		// View: status
@@ -286,6 +290,7 @@ class NTTS_List_Table extends WP_List_Table {
 			$status
 		);
 
+		// Search query
 		$search = ! empty( $_REQUEST['s'] ) ? trim( wp_unslash( $_REQUEST['s'] ) ) : '';
 		if ( ! empty( $search ) ) {
 			$where .= $wpdb->prepare(
@@ -322,11 +327,20 @@ class NTTS_List_Table extends WP_List_Table {
 	 * @see WP_List_Table->no_items()
 	 */
 	public function no_items() {
-		_e( 'No events available.', 'nttslt' );
+		printf(
+			/* translators: %s: Plural of record type */
+			__( 'No %s available.', 'nttslt' ),
+			$this->_args['plural']
+		);
 	}
 
 	/**
 	 * Render a column when no column-specific method exist.
+	 *
+	 * All method names beginning with 'column_*' are dynamic
+	 * with the second part of the method matching the column key.
+	 * If a dynamic method doesn't exist for a column, the value
+	 * will come from $this->column_default().
 	 * 
 	 * @see WP_List_Table->column_default()
 	 *
@@ -347,11 +361,6 @@ class NTTS_List_Table extends WP_List_Table {
 	/**
 	 * Get the value for the 'date' column.
 	 * 
-	 * Note that all method names beginning with 'column_*' are dynamic
-	 * with the second part of the method matching the column key.
-	 * If a dynamic method doesn't exist for a column, the value
-	 * will come from $this->column_default().
-	 * 
 	 * @see WP_List_Table->single_row_columns() conditionals
 	 *
 	 * @param array $item Row of data. Contains the full row, not just this column.
@@ -369,6 +378,7 @@ class NTTS_List_Table extends WP_List_Table {
 	 * Get the value for the checkbox column.
 	 */
 	protected function column_cb( $item ) {
+		// Permission check is for illustration only. Use relevant permission.
 		if ( current_user_can( 'edit_users' ) ) {
 			$date_time = DateTime::createFromFormat( 'Y-m-d H:i:s', $item['date'] );
 
@@ -392,9 +402,10 @@ class NTTS_List_Table extends WP_List_Table {
 	/**
 	 * Generates content for a single row of the table.
 	 *
-	 * There's a bug with the bulk select checkbox where they won't work correctly
-	 * if the rows don't have an 'iedit' class. Check for the 'cb' column and if it
-	 * exists, add the 'iedit' class, else call the parent method.
+	 * There's a bug with the bulk select checkbox where it won't work correctly
+	 * if the rows don't have an 'iedit' class. Here, I check for the existance of
+	 * the checkbox (cb) column and if it exists, add the 'iedit' class,
+	 * else call the parent method since we don't need the 'iedit' class.
 	 * 
 	 * @link https://wordpress.stackexchange.com/a/425192/124494
 	 *
@@ -419,7 +430,7 @@ class NTTS_List_Table extends WP_List_Table {
 	 * - `'id' => 'link'`
 	 * 
 	 * See the "All (10) | Published (9) | Draft (1) …" links above the Posts table for an example.
-	 * If implemented, will need to have args accounted for in $this->sql_where()
+	 * If implemented, make sure to have these args accounted for in $this->sql_where()
 	 * 
 	 * @see WP_Posts_List_Table()->get_views()
 	 * 
@@ -428,6 +439,7 @@ class NTTS_List_Table extends WP_List_Table {
 	protected function get_views() {
 		$views = [];
 
+		// Whitelist for safety.
 		$allowed_status = [
 			'publish',
 			'trash',
@@ -542,6 +554,7 @@ class NTTS_List_Table extends WP_List_Table {
 	protected function get_bulk_actions() {
 		$actions = [];
 
+		// Whitelist for safety.
 		$allowed_status = [
 			'publish',
 			'trash',
@@ -656,6 +669,9 @@ class NTTS_List_Table extends WP_List_Table {
 
 	/**
 	 * Generates and displays row action links.
+	 *
+	 * These are the links that appear in the primary column when you
+	 * mouse over the column.
 	 * 
 	 * @see WP_List_Table->handle_row_actions() 
 	 * 
@@ -666,7 +682,6 @@ class NTTS_List_Table extends WP_List_Table {
 	 *                if the current column is not the primary column.
 	 */
 	protected function handle_row_actions( $item, $column_name, $primary ) {
-		//var_dump($item);
 		if ( $primary !== $column_name ) {
 			return '';
 		}
@@ -676,7 +691,7 @@ class NTTS_List_Table extends WP_List_Table {
 		// Chose an appropriate permission for your model
 		$has_permission = current_user_can( 'edit_users' );
 
-		// edit (fake) but putting here as an example
+		// Edit link (fake) but putting here as an example.
 		if ( $has_permission && 'trash' !== $item['status'] ) {
 			$actions['edit'] = sprintf(
 				'<a href="%s" onclick="return false;">%s</a>', // disabling link with onclick since it's fake
@@ -685,8 +700,9 @@ class NTTS_List_Table extends WP_List_Table {
 			);
 		}
 		
-		// trash/untrash
+		// Trash / Restore
 		if ( $has_permission && 'trash' !== $item['status'] ) {
+			// Trash
 			$actions['trash'] = sprintf(
 				'<a href="%s" aria-label="%s">%s</a>',
 				esc_url( wp_nonce_url( "admin.php?page={$_REQUEST['page']}&action=trash&event_ids[]={$item['ID']}", 'bulk-events' ) ),
@@ -700,6 +716,7 @@ class NTTS_List_Table extends WP_List_Table {
 				_x( 'Trash', 'verb', 'nttslt' )
 			);
 		} elseif ( $has_permission && 'trash' === $item['status'] ) {
+			// Restore
 			$actions['untrash'] = sprintf(
 				'<a href="%s" aria-label="%s">%s</a>',
 				esc_url( wp_nonce_url( "admin.php?page={$_REQUEST['page']}&action=untrash&event_ids[]={$item['ID']}", 'bulk-events' ) ),
@@ -728,27 +745,37 @@ class NTTS_List_Table extends WP_List_Table {
 		 * We're implementing Javascript AJAX features so we need a way to grab
 		 * values that wouldn't normally exist in the form. This allows us to use just
 		 * the form data to build the fetch() request and not have to pull some
-		 * data from the URL query string.
+		 * data from other sources.
 		 */
-
-		// Nonce
-		//wp_nonce_field( 'nttslt-fetch-wp-list-table-events', '_wpnonce_nttslt-fetch-wp-list-table-events' );
 		
-		// Add page.
+		/**
+		 * Add 'page' to allow filters to work w/o JavaScript. When the form is submitted,
+		 * it goes to the correct URL. I have to remove the 'page' attribute from
+		 * the data when doing AJAX requests.
+		 */
 		echo '<input type="hidden" name="page" value="' . esc_attr( sanitize_title( $_REQUEST['page'] ) ) . '">';
-
+				
 		// Add Views status.
 		echo '<input type="hidden" name="status" value="' . esc_attr( sanitize_title( $_REQUEST['status'] ?? 'publish' ) ) . '">';
 		
+		// Order/Order By
 		echo '<input type="hidden" name="order" value="' . $this->_pagination_args['order'] . '">';
 		echo '<input type="hidden" name="orderby" value="' . $this->_pagination_args['orderby'] . '">';
+
+		// Needed for AJAX
+		if ( $this->_args['ajax'] ) {
+			$nonce = 'fetch-ntts-wp-list-table-' . $this->_args['plural'];
+			wp_nonce_field( $nonce, '_wpnonce_' . $nonce );
+
+			// Partial value we use for 'wp_ajax_*' action hook.
+			echo '<input type="hidden" name="ajax_hook" value="ntts_' . $this->_args['plural'] . '_table">';
+		}
 		
 		parent::display();
 	}
 
 	/**
-	 * @todo
-	 * Handles an incoming ajax request (called from admin-ajax.php)
+	 * Handles an incoming AJAX request (called from admin-ajax.php)
 	 * 
 	 * This rebuilds the table as HTML then converts it to JSON to be processed via Javascript.
 	 * Ideally we wouldn't use output buffer, but we'd have to extend all functions to get output
@@ -756,10 +783,10 @@ class NTTS_List_Table extends WP_List_Table {
 	 * 
 	 * @see WP_List_Table->ajax_response()
 	 */
-	/*
 	public function ajax_response() {
 		// Validate nonce
-		check_ajax_referer( 'nttslt-fetch-wp-list-table-events', '_wpnonce_nttslt-fetch-wp-list-table-events' );
+		$nonce = 'fetch-ntts-wp-list-table-' . $this->_args['plural'];
+		check_ajax_referer( $nonce, '_wpnonce_' . $nonce );
 
 		$this->prepare_items();
 		
@@ -786,7 +813,7 @@ class NTTS_List_Table extends WP_List_Table {
 		// Get bottom pagination
 		ob_start();
 		$this->pagination( 'bottom' );
-		$pagination_bottom = ob_get_clean();
+		$pagination_bottom = ob_get_clean();		
 
 		// Build response.
 		$response = [
@@ -811,5 +838,4 @@ class NTTS_List_Table extends WP_List_Table {
 		// Output JSON
 		die( json_encode( $response ) );
 	}
-	*/
 }

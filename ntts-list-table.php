@@ -109,7 +109,7 @@ register_activation_hook( __FILE__, [ 'NTTS_Plugin_List_Table_Bootstrap', 'creat
 register_deactivation_hook( __FILE__, [ 'NTTS_Plugin_List_Table_Bootstrap', 'delete_dummy_data' ] );
 
 // Admin. functions for the table.
-require_once 'class-ntts-list-table-admin.php';
+require_once 'class-ntts-events-table-admin.php';
 
 // Custom table class that extends WP_List_Table.
-require_once 'class-ntts-list-table.php';
+require_once 'class-ntts-events-table.php';
